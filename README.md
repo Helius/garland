@@ -4,15 +4,13 @@
 
 After clone
 
-```
+``` bash
 cd garland
 mkdir build
 cd build
 cmake ../
-
 # build
 make
-
 # program to arduino pro mini compatible board
 make make upload_garland
 ```
