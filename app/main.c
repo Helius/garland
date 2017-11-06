@@ -18,6 +18,7 @@ const unsigned long int rainbow[] PROGMEM = {
 	0xFF00FF
 };
 
+// 1/4 of sin wave
 const unsigned char sin_arr[] PROGMEM = {
 	0,
 	8,
@@ -73,7 +74,7 @@ const unsigned char sin_arr[] PROGMEM = {
 
 
 #define MODE_RAINBOW        0
-#define MODE_BT             1
+#define MODE_CMD            1
 #define MODE_RANDOM_FORWARD 2
 
 unsigned char width = 50;
@@ -149,7 +150,7 @@ void run_command (unsigned char cmd, unsigned char * value) {
 			break;
 
 		case C_SET_LED:
-			mode = MODE_BT;
+			mode = MODE_CMD;
 	//		printf("cmd:set led, ind 0x%x, value 0x%x%x%x\n\r", value[0], value[1], value[2], value[3]);
 			setR(value[0], 0, value[1]);
 			setG(value[0], 0, value[2]);
@@ -157,7 +158,7 @@ void run_command (unsigned char cmd, unsigned char * value) {
 			break;
 		
 		case C_SET_ALL:
-			mode = MODE_BT;
+			mode = MODE_CMD;
 //			printf("cmd:set ALL, value 0x%x%x%x\n\r", value[0], value[1], value[2]);
 		  
 			for (unsigned char i = 0; i < width; ++i) {
@@ -232,21 +233,6 @@ int main(void)
 	DDRD |= 1 << PIN6;
 	PORTD |= 1 << PIN6;
 	sei();
-/*
-	int j = 0;
-	int period = 4;
-	while(1)
-	{
-		j++;
-		for (int i = 0; i < 50; ++i) {
-			setR(i, 0, sin_value((i+j)%period, period));
-			setG(i, 0, sin_value((i+j+period/3)%period, period));
-//			setB(i, 0, sin_value((i+j+(period*2)/3)%period, period));
-		}
-		showLEDs();
-		_delay_ms(180);
-	}
-*/
 
 	while(1)
 	{
@@ -261,8 +247,8 @@ int main(void)
 				}
 				break;
 
-			case MODE_BT:
-				// do nothing
+			case MODE_CMD:
+				// do nothing, do cmd from serial port
 				break;
 
 			case MODE_RANDOM_FORWARD:
