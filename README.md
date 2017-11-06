@@ -1,7 +1,7 @@
 # Christmas tree garland based on ws2812b strip and arduino pro mini
 
 # Hardware
-Arduino pro mini, HC-06 bluetooth module, ws2812b strip.
+Arduino pro mini (Atmega168, 5V 16MHz), HC-06 bluetooth module, ws2812b strip on 100 led.
 
 # Software
 Src was written in C lang and compile with avr-gcc. As build system i tried to use CMake with very nice template from https://github.com/mkleemann/cmake-avr, thanks @mkleemann! It was an experiment and i really like CMake for this purpose now.
