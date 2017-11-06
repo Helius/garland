@@ -7,6 +7,7 @@
 #include <uart.h>
 #include <ws2812b.h>
 
+
 const unsigned long int rainbow[] PROGMEM = {
 	0xFF0000,
 	0xFF7D00,
@@ -70,6 +71,17 @@ const unsigned char sin_arr[] PROGMEM = {
 	255,
 };
 
+
+#define MODE_RAINBOW        0
+#define MODE_BT             1
+#define MODE_RANDOM_FORWARD 2
+
+unsigned char width = 50;
+unsigned char mode = MODE_RAINBOW;
+unsigned char loop_delay = 50; // x2 ms
+
+
+
 unsigned char sin_value(int value, int period)
 {
 	int t_ind = (value * sizeof(sin_arr) * 2)/period;
@@ -87,6 +99,116 @@ void togglePin(void)
 	_delay_ms(250);
 }
 
+void shift(int forvard) {
+	if (forvard) {
+		for (int i = width-1; i > 0; --i) {
+			setR(i,0,getR(i-1,0));
+			setG(i,0,getG(i-1,0));
+			setB(i,0,getB(i-1,0));
+		}
+	} else {
+		for (int i = 0; i < width-1; ++i) {
+			setR(i,0,getR(i+1,0));
+			setG(i,0,getG(i+1,0));
+			setB(i,0,getB(i+1,0));
+		}
+	}
+}
+
+#define S_IDLE 0
+#define S_DATA 1
+
+#define C_BRIGHT   0x0 // value 8b[value 0..255]
+#define C_MODE     0x1 // value 8b[mode 0..x]
+#define C_SPEED    0x2 // value 8b[loop delay ms]
+#define C_SET_LED  0x3 // value 8b[index] 8b[R] 8b[G] 8b[B]
+#define C_SET_ALL  0x4 // value 8b[R] 8b[G] 8b[B]
+#define C_WIDTH    0x5 // value 8b[width]
+
+void run_command (unsigned char cmd, unsigned char * value) {
+	switch (cmd) {
+
+		case C_BRIGHT:
+//			printf("cmd:bright, value 0x%x\n\r", value[0]);
+			setMaxBrightness(value[0]);
+			break;
+
+		case C_MODE:
+//			printf("cmd:mode, value 0x%x\n\r", value[0]);
+			mode = value[0];
+			break;
+
+		case C_SPEED:
+//			printf("cmd:speed, value 0x%x\n\r", value[0]);
+			loop_delay = value[0];
+			break;
+
+		case C_WIDTH:
+//			printf("cmd:width, value 0x%x\n\r", value[0]);
+			width = value[0];
+			break;
+
+		case C_SET_LED:
+			mode = MODE_BT;
+	//		printf("cmd:set led, ind 0x%x, value 0x%x%x%x\n\r", value[0], value[1], value[2], value[3]);
+			setR(value[0], 0, value[1]);
+			setG(value[0], 0, value[2]);
+			setB(value[0], 0, value[3]);
+			break;
+		
+		case C_SET_ALL:
+			mode = MODE_BT;
+//			printf("cmd:set ALL, value 0x%x%x%x\n\r", value[0], value[1], value[2]);
+		  
+			for (unsigned char i = 0; i < width; ++i) {
+				setR(i, 0, value[0]);
+				setG(i, 0, value[1]);
+				setB(i, 0, value[2]);
+			}
+			break;
+
+		default:
+			printf ("unk cmd: 0x%x\n\r", value[0]);
+			break;
+	}
+}
+
+
+void uart_rx_handler(unsigned char ch)
+{
+	static unsigned char state = 0;
+	static unsigned char cmd = 0;
+	static unsigned char value[8];
+	static unsigned char will_receive = 0;
+	static unsigned char index = 0;
+
+	switch(state) {
+
+		case S_IDLE:
+			cmd = ch;
+			index = 0;
+			if (cmd == C_SET_LED) {
+				will_receive = 4;
+			} else if (cmd == C_SET_ALL) {
+				will_receive = 3;
+			} else {
+				will_receive = 1;
+			}
+			state = S_DATA;
+			//printf("\n\rVVVV got cmd VVVV need %d more\n\r", will_receive);
+			break;
+
+		case S_DATA:
+			//printf("0x%x ", ch);
+			value[index++] = ch;
+			if (index == will_receive) {
+				//printf("\n\r");
+				run_command(cmd, value);
+				state = S_IDLE;
+			}
+			break;
+	}
+}
 
 int main(void)
 {
@@ -94,7 +216,9 @@ int main(void)
 	initLEDs();
 
 	uart_init();
-	printf("Hi\n\r");
+  set_receive_interrupt_handler(&uart_rx_handler);
+	printf("Hi from helius garland!\n\r");
+	
 
 
 	DDRB |= (1 << PIN5);
@@ -107,6 +231,7 @@ int main(void)
 	_delay_ms(3000);
 	DDRD |= 1 << PIN6;
 	PORTD |= 1 << PIN6;
+	sei();
 /*
 	int j = 0;
 	int period = 4;
@@ -122,44 +247,51 @@ int main(void)
 		_delay_ms(180);
 	}
 */
-	/*
+
 	while(1)
 	{
+		switch (mode) {
+
+			case MODE_RAINBOW: 
+				{
+					static unsigned char rainbow_ind = 0;
+					shift(1);
+					setRGB(0, 0, pgm_read_dword(&(rainbow[rainbow_ind%7])));	
+					rainbow_ind++;
+				}
+				break;
+
+			case MODE_BT:
+				// do nothing
+				break;
+
+			case MODE_RANDOM_FORWARD:
+				shift(1);
+				setRGB(0,0,0);
+				switch(rand()%3) {
+					case 0:
+						setR(0, 0, 0xFF);
+						break;
+					case 1:
+						setG(0, 0, 0xFF);
+						break;
+					case 2:
+						setB(0, 0, 0xFF);
+						break;
+				}
+				break;
+			
+			default:
+				printf("unknow mode");
+				mode = MODE_RAINBOW;
+				break;
+		}
 		
-		setRGB(0,0,0);
-		switch(rand()%3) {
-			case 0:
-				setR(0, 0, 0xFF);
-				break;
-			case 1:
-				setG(0, 0, 0xFF);
-				break;
-			case 2:
-				setB(0, 0, 0xFF);
-				break;
-		}
-		for (int i = 49; i > 0; --i) {
-			setR(i,0,getR(i-1,0));
-			setG(i,0,getG(i-1,0));
-			setB(i,0,getB(i-1,0));
-		}
 		showLEDs();
-		_delay_ms(100);
-	}
-*/
-	// shifting rainbow
-	unsigned char rainbow_ind = 0;
-	while(1)
-	{
-		setRGB(0, 0, pgm_read_dword(&(rainbow[rainbow_ind%7])));	
-		rainbow_ind++;
-		for (int i = 49; i > 0; --i) {
-			setR(i,0,getR(i-1,0));
-			setG(i,0,getG(i-1,0));
-			setB(i,0,getB(i-1,0));
+		
+		for (int i = 0; i < loop_delay; ++i) {
+			_delay_ms(2);
 		}
-		showLEDs();
-		_delay_ms(100);
 	}
 }
 
