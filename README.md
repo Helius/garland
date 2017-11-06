@@ -8,9 +8,9 @@ Src was written in C lang and compile with avr-gcc. As build system i tried to u
 
 Also i used wonderful lib for strip https://github.com/Mattscheibe/ws2812b, thanks @Mattscheibe ! ) It really simple and just do what it has to do )
 
-# Bluetooth command
+# Serial port command
 
-Format is byte oriented
+Receive command byte by byte from serial port (baudrate is 115200), i use bluetooth to send command from android app.
 ```
 8b[cmd] nx8b[value] (1-4)
 
