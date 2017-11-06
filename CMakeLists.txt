@@ -138,11 +138,14 @@ add_definitions("-std=gnu99")
 # include search paths
 ##########################################################################
 include_directories(app)
+include_directories(ws2812lib)
+include_directories(hallib)
 
 ##########################################################################
 # building library and application in their subdirectories
 ##########################################################################
-#add_subdirectory(mylib)
+add_subdirectory(ws2812lib)
+add_subdirectory(hallib)
 add_subdirectory(app)
 
 ##########################################################################

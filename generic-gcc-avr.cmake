@@ -163,7 +163,7 @@ function(add_avr_executable EXECUTABLE_NAME)
       ${elf_file}
       PROPERTIES
          COMPILE_FLAGS "-mmcu=${AVR_MCU}"
-         LINK_FLAGS "-mmcu=${AVR_MCU} -Wl,--gc-sections -mrelax -Wl,-Map,${map_file}"
+				 LINK_FLAGS "-mmcu=${AVR_MCU} -Wl,--gc-sections -Wl,-u,vfprintf -lprintf_flt -mrelax -Wl,-Map,${map_file}"
    )
 
    add_custom_command(
@@ -228,7 +228,7 @@ function(add_avr_executable EXECUTABLE_NAME)
    # get status
    add_custom_target(
       get_status
-      ${AVR_UPLOADTOOL} -p ${AVR_MCU} -c ${AVR_PROGRAMMER} -P ${AVR_UPLOADTOOL_PORT} -n -v
+      ${AVR_UPLOADTOOL} -p ${AVR_MCU} -c ${AVR_PROGRAMMER} -P ${AVR_UPLOADTOOL_PORT} -n
       COMMENT "Get status from ${AVR_MCU}"
    )
 

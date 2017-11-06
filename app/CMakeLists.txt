@@ -17,5 +17,5 @@ add_avr_executable(
 find_library(C_LIB c)
 message(STATUS "avr-libc: ${C_LIB}")
 
-avr_target_link_libraries(garland ${C_LIB})
+avr_target_link_libraries(garland ws2812lib hallib ${C_LIB})
 
