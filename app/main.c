@@ -3,6 +3,7 @@
 #include <util/delay.h>
 #include <avr/pgmspace.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <uart.h>
 #include <ws2812b.h>
@@ -77,11 +78,14 @@ const unsigned char sin_arr[] PROGMEM = {
 #define MODE_CMD            1
 #define MODE_RANDOM_FORWARD 2
 
-unsigned char width = 50;
-unsigned char mode = MODE_RAINBOW;
-unsigned char loop_delay = 50; // x2 ms
+unsigned char width = 100;
+unsigned char mode = MODE_RANDOM_FORWARD;
+unsigned char loop_delay = 20; // x10 ms
+unsigned char strike_len = 10;
 
-
+unsigned char need_shift = 0;
+unsigned char need_common_color = 0;
+unsigned long int common_color;
 
 unsigned char sin_value(int value, int period)
 {
@@ -116,6 +120,28 @@ void shift(int forvard) {
 	}
 }
 
+void set_common_color(unsigned long int color) {
+	for (unsigned char i = 0; i < width; ++i) {
+		setRGB(i, 0, color);
+	}
+}
+
+unsigned long int get_rgb_rand_color() {
+
+	switch(rand()%3) {
+		case 0:
+			return 0xFF0000;
+			
+		case 1:
+			return 0x00FF00;
+	}
+	return 0x0000FF;
+}
+
+unsigned long int get_rainbow_rand_color() {
+	return pgm_read_dword(&(rainbow[rand()%7]));
+}
+
 #define S_IDLE 0
 #define S_DATA 1
 
@@ -125,33 +151,31 @@ void shift(int forvard) {
 #define C_SET_LED  0x3 // value 8b[index] 8b[R] 8b[G] 8b[B]
 #define C_SET_ALL  0x4 // value 8b[R] 8b[G] 8b[B]
 #define C_WIDTH    0x5 // value 8b[width]
+#define C_SHIFT    0x6 // value 8b[number]
 
-void run_command (unsigned char cmd, unsigned char * value) {
+
+unsigned char run_command (unsigned char cmd, unsigned char * value) 
+{			
 	switch (cmd) {
 
 		case C_BRIGHT:
-//			printf("cmd:bright, value 0x%x\n\r", value[0]);
 			setMaxBrightness(value[0]);
 			break;
 
 		case C_MODE:
-//			printf("cmd:mode, value 0x%x\n\r", value[0]);
 			mode = value[0];
 			break;
 
 		case C_SPEED:
-//			printf("cmd:speed, value 0x%x\n\r", value[0]);
 			loop_delay = value[0];
 			break;
 
 		case C_WIDTH:
-//			printf("cmd:width, value 0x%x\n\r", value[0]);
 			width = value[0];
 			break;
 
 		case C_SET_LED:
 			mode = MODE_CMD;
-	//		printf("cmd:set led, ind 0x%x, value 0x%x%x%x\n\r", value[0], value[1], value[2], value[3]);
 			setR(value[0], 0, value[1]);
 			setG(value[0], 0, value[2]);
 			setB(value[0], 0, value[3]);
@@ -159,29 +183,30 @@ void run_command (unsigned char cmd, unsigned char * value) {
 		
 		case C_SET_ALL:
 			mode = MODE_CMD;
-//			printf("cmd:set ALL, value 0x%x%x%x\n\r", value[0], value[1], value[2]);
+			common_color = (unsigned long int)(value[0]) << 16 | value[1] << 8 | value[2];
+			need_common_color = 1;
 		  
-			for (unsigned char i = 0; i < width; ++i) {
-				setR(i, 0, value[0]);
-				setG(i, 0, value[1]);
-				setB(i, 0, value[2]);
-			}
+			break;
+
+		case C_SHIFT:
+			need_shift = 1;
 			break;
 
 		default:
-			printf ("unk cmd: 0x%x\n\r", value[0]);
+			return 0;
 			break;
 	}
+	return 1;
 }
-
 
 void uart_rx_handler(unsigned char ch)
 {
-	static unsigned char state = 0;
+	static unsigned char state = S_IDLE;
+	static unsigned char index = 0;
 	static unsigned char cmd = 0;
 	static unsigned char value[8];
-	static unsigned char will_receive = 0;
-	static unsigned char index = 0;
+  static unsigned char will_receive = 0;
+	
 
 	switch(state) {
 
@@ -196,17 +221,16 @@ void uart_rx_handler(unsigned char ch)
 				will_receive = 1;
 			}
 			state = S_DATA;
-			//printf("\n\rVVVV got cmd VVVV need %d more\n\r", will_receive);
 			break;
 
 		case S_DATA:
-			//printf("0x%x ", ch);
+			
 			value[index++] = ch;
 			if (index == will_receive) {
-				//printf("\n\r");
-				run_command(cmd, value);
 				state = S_IDLE;
+				run_command(cmd, value);
 			}
+			
 			break;
 	}
 }
@@ -218,9 +242,8 @@ int main(void)
 
 	uart_init();
   set_receive_interrupt_handler(&uart_rx_handler);
-	printf("Hi from helius garland!\n\r");
+//	printf("Hi from helius garland!\n\r");
 	
-
 
 	DDRB |= (1 << PIN5);
 	togglePin();
@@ -229,43 +252,55 @@ int main(void)
   
 	// delay for enabling bluetooth board power
 	// allow to program board via serial port
-	_delay_ms(3000);
+	_delay_ms(1000);
 	DDRD |= 1 << PIN6;
 	PORTD |= 1 << PIN6;
 	sei();
 
 	while(1)
 	{
+		//printf("\n\r");
+		
+		for (unsigned char i = 0; i < loop_delay; ++i) {
+			_delay_ms(10);
+		}
+
 		switch (mode) {
 
 			case MODE_RAINBOW: 
 				{
 					static unsigned char rainbow_ind = 0;
-					shift(1);
-					setRGB(0, 0, pgm_read_dword(&(rainbow[rainbow_ind%7])));	
 					rainbow_ind++;
+					setRGB(0, 0, pgm_read_dword(&(rainbow[rainbow_ind%7])));
+					shift(1);
+					setRGB(0, 0, pgm_read_dword(&(rainbow[(rainbow_ind+1)%7])));
 				}
 				break;
 
 			case MODE_CMD:
 				// do nothing, do cmd from serial port
+				// check are there havy operations todo
+				if (need_shift) {
+					shift(1);
+					need_shift = 0;
+				}
+				
+				if (need_common_color) {
+					set_common_color(common_color);
+					need_common_color = 0;
+				}
+
 				break;
 
 			case MODE_RANDOM_FORWARD:
 				shift(1);
-				setRGB(0,0,0);
-				switch(rand()%3) {
-					case 0:
-						setR(0, 0, 0xFF);
-						break;
-					case 1:
-						setG(0, 0, 0xFF);
-						break;
-					case 2:
-						setB(0, 0, 0xFF);
-						break;
+				static unsigned char len = 0;
+				if ((len++)%strike_len == 0) {
+					//setRGB(0, 0, get_rgb_rand_color());
+					setRGB(0, 0, get_rainbow_rand_color());
 				}
 				break;
+
 			
 			default:
 				printf("unknow mode");
@@ -274,10 +309,6 @@ int main(void)
 		}
 		
 		showLEDs();
-		
-		for (int i = 0; i < loop_delay; ++i) {
-			_delay_ms(2);
-		}
 	}
 }
 

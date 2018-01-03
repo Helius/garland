@@ -210,7 +210,7 @@ void showLEDs() {
   // display pixel array content to LEDs
   float currentBrightness = (float)maxBrightnessLEDs / 255.0 ;
   unsigned char curbyte,ctr;
-  unsigned char sreg_prev;
+//  unsigned char sreg_prev;
   unsigned int datlen=WIDTH*HEIGHT*3;
   unsigned char *data;
   if (maxBrightnessLEDs == 255) {
@@ -225,8 +225,8 @@ void showLEDs() {
     }
     data = (unsigned char *)newpixel;
   }
-  sreg_prev=SREG;
-  cli();  
+  //sreg_prev=SREG;
+  //cli();  
   while (datlen--) {
     curbyte = *data++;
     asm volatile(
@@ -288,5 +288,5 @@ void showLEDs() {
     :  "r" (curbyte), "I" (_SFR_IO_ADDR(ws2812b_PORTREG)), "r" (maskhi), "r" (masklo)
     );
   }
-  SREG=sreg_prev;
+  //SREG=sreg_prev;
 }
